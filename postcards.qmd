@@ -2,5 +2,13 @@
 title: "Voting and Postcards"
 author: "Jacob Khaykin"
 format: html
+execute: 
+  echo: false
 ---
+Whether or not people vote is influenced by personal traits like age and past behavior. Using data on thousands of registered voters in Michigan collected by Gerber, Green, and colleagues, we examine whether a specific treatment increased turnout in the 2006 primary election.
+```{r}
+#| message: false
+library(tidyverse)
+library(primer.data)
+```
 
