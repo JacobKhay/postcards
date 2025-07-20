@@ -4,11 +4,93 @@ author: "Jacob Khaykin"
 format: html
 execute: 
   echo: false
+  warning: false
 ---
-Whether or not people vote is influenced by personal traits like age and past behavior. Using data on thousands of registered voters in Michigan collected by Gerber, Green, and colleagues, we examine whether a specific treatment increased turnout in the 2006 primary election.
+
+Whether or not people vote is influenced by personal traits like age and past behavior. Using data on thousands of registered voters in Michigan collected by Gerber, Green, and colleagues, we examine whether a specific treatment increased turnout in the 2006 primary election. To estimate likely effects, we fit a logistic regression model predicting voter turnout as a function of postcard treatment, sex, age, and voter class. The model estimates that the Neighbors postcard increased the probability of voting by about 6 percentage points for occasional voters, with a 95% confidence interval ranging from roughly 5 to 7 percentage points.
+
+
 ```{r}
 #| message: false
 library(tidyverse)
 library(primer.data)
+library(tidymodels)
+library(broom)
+library(marginaleffects)
+library(gt)
+```
+
+```{r}
+shaming <- shaming |>
+  mutate(voter_class = case_when(
+    primary_00 + general_00 + primary_02 + general_02 + primary_04 + general_04 >= 5 ~ "Always Vote",
+    primary_00 + general_00 + primary_02 + general_02 + primary_04 + general_04 >= 1 ~ "Sometimes Vote",
+    TRUE ~ "Never Vote"
+  ))
+```
+
+Logistic regression model equation in LaTeX:
+
+$$
+\begin{aligned}
+Y &\sim \text{Bernoulli}(\rho) \\\\
+\rho &= \frac{1}{1 + \exp^{-(\beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_n X_n)}}
+\end{aligned}
+$$
+
+Fit the logistic regression model:
+
+```{r}
+#| cache: true
+fit_vote <- logistic_reg(engine = "glm") |>
+  fit(factor(primary_06) ~ treatment + sex + age + voter_class, data = shaming)
+```
+
+Nice-looking regression table:
+
+```{r}
+#| cache: true
+fit_vote_table <- tidy(fit_vote, conf.int = TRUE) |>
+  select(term, estimate, conf.low, conf.high) |>
+  gt() |>
+  tab_header(
+    title = "Logistic Regression: Predicting 2006 Primary Voting",
+    subtitle = "Estimates and 95% Confidence Intervals"
+  ) |>
+  cols_label(
+    term = "Variable",
+    estimate = "Estimate",
+    conf.low = "Lower CI",
+    conf.high = "Upper CI"
+  ) |>
+  fmt_number(
+    columns = c(estimate, conf.low, conf.high),
+    decimals = 3
+  )
+```
+
+Plot predictions by treatment and voter class:
+
+```{r}
+#| label: fig-voting-predictions
+#| fig-cap: "Predicted Probability of Voting by Treatment and Voter Class"
+#| fig-alt: "Line plot showing how different treatment postcards affect voter turnout likelihood across voter classes"
+
+preds <- plot_predictions(fit_vote, type = "prob", condition = c("treatment", "voter_class"), draw = FALSE)
+
+ggplot(preds, aes(x = treatment, y = estimate, color = voter_class, group = voter_class)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1, alpha = 0.7) +
+  labs(
+    title = "Effect of Postcard Treatments on Voter Turnout by Voter Class",
+    subtitle = "Neighbors postcard had the largest impact, especially on 'Sometimes Vote' group",
+    x = "Treatment Postcard Type",
+    y = "Predicted Probability of Voting",
+    caption = "Source: 2006 Michigan Postcard Experiment"
+  ) +
+  theme_minimal(base_size = 14) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme(legend.title = element_blank())
 ```
 
